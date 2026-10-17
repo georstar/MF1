@@ -7,6 +7,7 @@
 	--font-script: 'Pinyon Script', cursive;
 	--font-hand: 'Homemade Apple', cursive;
 	--font-body: 'Cormorant Garamond', Georgia, serif;
+	--font-input: 'Lora', Georgia, serif;
 }
 
 *,
@@ -104,8 +105,9 @@ body {
 	border-bottom: 1.5px solid var(--ink);
 	background: transparent;
 	padding: 10px 2px;
-	font-family: var(--font-hand);
-	font-size: 0.9rem;
+	/* Plain, easy-to-read serif: guests must see exactly what they typed. */
+	font-family: var(--font-input);
+	font-size: 1rem;
 	color: var(--ink);
 	border-radius: 0;
 }
