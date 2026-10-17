@@ -1,0 +1,3 @@
+BRIDE_PASSWORD="choose-a-bride-password"
+DJ_PASSWORD="choose-a-dj-password"
+SESSION_SECRET="paste-a-long-random-string"
