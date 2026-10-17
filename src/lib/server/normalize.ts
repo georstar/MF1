@@ -1,15 +1,6 @@
 // Comparison keys: two names or songs that a person would call "the same"
 // must produce the same key.
-
-function base(text: string): string {
-	return text
-		.normalize('NFD')
-		.replace(/\p{M}/gu, '')
-		.toLowerCase()
-		.replace(/&/g, ' and ')
-		.replace(/[^\p{L}\p{N}]+/gu, ' ')
-		.trim();
-}
+import { fold as base } from '../text';
 
 export function nameKey(full: string): string {
 	return base(full);

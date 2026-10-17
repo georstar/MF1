@@ -1,4 +1,4 @@
-import type { Cookies } from '@sveltejs/kit';
+import { error, redirect, type Cookies } from '@sveltejs/kit';
 
 export type Role = 'bride' | 'dj';
 
@@ -65,4 +65,11 @@ export async function readAdminCookie(cookies: Cookies, secret: string, now = Da
 
 export function clearAdminCookie(cookies: Cookies): void {
 	cookies.delete(ADMIN_COOKIE, { path: '/' });
+}
+
+// Guards for the bride & DJ pages: 'any' = bride or DJ, 'bride' = bride only.
+export function requireRole(locals: App.Locals, needed: 'any' | 'bride'): Role {
+	if (!locals.role) redirect(303, '/admin/login');
+	if (needed === 'bride' && locals.role !== 'bride') error(403, 'Only the bride can do that.');
+	return locals.role;
 }
