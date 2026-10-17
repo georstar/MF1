@@ -16,6 +16,10 @@
 			</li>
 		{/each}
 	</ul>
+	<form method="POST" action="/?/forget" class="other-form">
+		<button class="btn">Pick songs for someone else too</button>
+	</form>
+	<p class="hint">For a partner or child on the same phone. Everyone on the guest list picks their own 2 songs.</p>
 	<p class="footer">Maria &amp; Frank · 18.07.27</p>
 </main>
 
@@ -57,6 +61,15 @@
 		height: 44px;
 		filter: grayscale(0.85);
 		background: #c9c1bf;
+	}
+	.other-form {
+		width: 100%;
+		margin-top: 24px;
+	}
+	.hint {
+		color: var(--muted);
+		font-size: 0.85rem;
+		text-align: center;
 	}
 	.footer {
 		margin-top: auto;

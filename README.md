@@ -62,7 +62,7 @@ The site is then live at `https://maria-and-frank.pages.dev`. Then:
 
 1. Log in at `/admin` with the bride's password.
 2. On **Guests**, download the template, fill in one row per person (partners and
-   children too), and upload it. Excel files saved with `;` work fine.
+   children too), and upload it. Excel files saved with `;`, or in the older non-UTF-8 "CSV" format, work too.
 3. On **Songs**, download the QR code and share it, or the link, with guests.
 
 Later deploys: `npm run build && npx wrangler pages deploy`.

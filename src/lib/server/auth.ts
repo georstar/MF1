@@ -46,6 +46,10 @@ export async function setGuestCookie(cookies: Cookies, guestId: number, secret: 
 	cookies.set(GUEST_COOKIE, await sign(String(guestId), secret), options(secure, 400 * DAY));
 }
 
+export function clearGuestCookie(cookies: Cookies): void {
+	cookies.delete(GUEST_COOKIE, { path: '/' });
+}
+
 export async function readGuestCookie(cookies: Cookies, secret: string): Promise<number | null> {
 	const value = await verify(cookies.get(GUEST_COOKIE) ?? '', secret);
 	return value && /^\d+$/.test(value) ? Number(value) : null;

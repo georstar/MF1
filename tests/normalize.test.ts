@@ -33,3 +33,14 @@ describe('songKey', () => {
 		expect(songKey('Café', 'Zoé')).toBe(songKey('cafe', 'ZOE'));
 	});
 });
+
+describe('letters that are not accents', () => {
+	it('folds ø, ß, æ, œ, ł, đ', () => {
+		expect(nameKey('Søren Strauß')).toBe(nameKey('Soren Strauss'));
+		expect(nameKey('Æsa Œuvre Łukasz Đorđe')).toBe(nameKey('Aesa Oeuvre Lukasz Dorde'));
+	});
+	it('ignores apostrophes inside names', () => {
+		expect(nameKey("Sinead O'Brien")).toBe(nameKey('Sinead OBrien'));
+		expect(nameKey('Sinead O’Brien')).toBe(nameKey('sinead obrien'));
+	});
+});

@@ -1,7 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { env, type Env } from '#lib/server/env.ts';
-import { setGuestCookie } from '#lib/server/auth.ts';
-import { findGuests } from '#lib/server/guests.ts';
+import { clearGuestCookie, setGuestCookie } from '#lib/server/auth.ts';
+import { findGuests, getGuest } from '#lib/server/guests.ts';
 import { getCloseDate, isClosed } from '#lib/server/settings.ts';
 import { slotsLeft } from '#lib/server/songs.ts';
 import type { Guest } from '#lib/server/db.ts';
@@ -13,11 +13,12 @@ async function nextPage(db: Env['DB'], guestId: number) {
 	return (await slotsLeft(db, guestId)) > 0 ? '/pick' : '/thanks';
 }
 
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, url }) => {
 	const db = env.DB;
 	const closed = isClosed(await getCloseDate(db), new Date());
-	const next = locals.guestId ? await nextPage(db, locals.guestId) : null;
-	return { closed, next };
+	const guest = locals.guestId ? await getGuest(db, locals.guestId) : null;
+	const next = guest ? await nextPage(db, guest.id) : null;
+	return { closed, next, who: guest?.firstName ?? null, startAtName: url.searchParams.get('step') === 'name' };
 };
 
 async function signIn(guestId: number, { cookies, url }: Parameters<Actions[string]>[0]) {
@@ -26,6 +27,11 @@ async function signIn(guestId: number, { cookies, url }: Parameters<Actions[stri
 }
 
 export const actions: Actions = {
+	// Lets another person on the same phone (partner, child) pick their own songs.
+	forget: async ({ cookies }) => {
+		clearGuestCookie(cookies);
+		redirect(303, '/?step=name');
+	},
 	name: async (event) => {
 		const db = env.DB;
 		if (isClosed(await getCloseDate(db), new Date())) return fail(403, { closed: true });

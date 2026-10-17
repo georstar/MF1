@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseGuestCsv, songsToCsv } from '../src/lib/server/csv';
+import { decodeCsv, parseGuestCsv, songsToCsv } from '../src/lib/server/csv';
 import type { SongRow } from '../src/lib/server/db';
 
 describe('parseGuestCsv', () => {
@@ -17,6 +17,33 @@ describe('parseGuestCsv', () => {
 		expect(rows).toHaveLength(1);
 		expect(errors).toHaveLength(1);
 		expect(errors[0]).toContain('3');
+	});
+});
+
+describe('parseGuestCsv with Greek/French Excel', () => {
+	it('reads the comma template after Excel saved it with semicolons', () => {
+		const text = 'first_name,last_name,label;;\r\nMaria;Papadopoulou;\r\nJean-Luc;Picard;Paris\r\n;;\r\n;;\r\n';
+		const { rows, errors } = parseGuestCsv(text);
+		expect(errors).toEqual([]);
+		expect(rows).toEqual([
+			{ firstName: 'Maria', lastName: 'Papadopoulou', label: '' },
+			{ firstName: 'Jean-Luc', lastName: 'Picard', label: 'Paris' }
+		]);
+	});
+	it('flags names with characters Excel could not save', () => {
+		const { rows, errors } = parseGuestCsv('first_name;last_name\nH?l?ne;Dupont\nAmina;Diallo\n');
+		expect(rows.map((r) => r.firstName)).toEqual(['Amina']);
+		expect(errors[0]).toContain('CSV UTF-8');
+	});
+});
+
+describe('decodeCsv', () => {
+	it('reads UTF-8', () => {
+		expect(decodeCsv(new TextEncoder().encode('Hélène;Dupont'))).toBe('Hélène;Dupont');
+	});
+	it('falls back to Windows-1252 for Excel plain CSV', () => {
+		const bytes = new Uint8Array([0x48, 0xe9, 0x6c, 0xe8, 0x6e, 0x65, 0x3b, 0x9c]);
+		expect(decodeCsv(bytes)).toBe('Hélène;œ');
 	});
 });
 

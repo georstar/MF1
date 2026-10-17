@@ -27,17 +27,54 @@ function splitLine(line: string, sep: string): string[] {
 	return out.map((s) => s.trim());
 }
 
+// Excel's plain "CSV" format is Windows-1252, not UTF-8. Bytes 0x80-0x9F differ from Latin-1.
+const CP1252 = '€\u0081‚ƒ„…†‡ˆ‰Š‹Œ\u008dŽ\u008f\u0090‘’“”•–—˜™š›œ\u009džŸ';
+
+export function decodeCsv(bytes: Uint8Array): string {
+	try {
+		return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+	} catch {
+		let out = '';
+		for (const b of bytes) out += b >= 0x80 && b <= 0x9f ? CP1252[b - 0x80] : String.fromCharCode(b);
+		return out;
+	}
+}
+
+const SEPARATORS = [';', ',', '\t'];
+const HEADER = /first|last|name|vorname|prénom|prenom/i;
+
+// Picks the separator that splits the most lines into at least two filled cells.
+// The header can't decide alone: Greek/French Excel keeps a comma header in one cell.
+function detectSeparator(lines: string[]): string {
+	let best = ',';
+	let bestScore = -1;
+	for (const sep of SEPARATORS) {
+		const score = lines.slice(0, 20).filter((l) => splitLine(l, sep).filter(Boolean).length >= 2).length;
+		if (score > bestScore) {
+			best = sep;
+			bestScore = score;
+		}
+	}
+	return best;
+}
+
 export function parseGuestCsv(text: string): { rows: GuestInput[]; errors: string[] } {
-	const lines = text.replace(/^﻿/, '').split(/\r?\n/);
-	const header = lines[0] ?? '';
-	const sep = header.split(';').length > header.split(',').length ? ';' : ',';
+	const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
+	const sep = detectSeparator(lines.slice(1).filter((l) => l.trim()));
 	const rows: GuestInput[] = [];
 	const errors: string[] = [];
-	lines.slice(1).forEach((line, i) => {
-		if (!line.trim()) return;
-		const [firstName = '', lastName = '', label = ''] = splitLine(line, sep);
+	const start = HEADER.test(lines[0] ?? '') ? 1 : 0;
+	lines.slice(start).forEach((line, i) => {
+		const cells = splitLine(line, sep);
+		if (cells.every((c) => !c)) return;
+		const lineNo = i + start + 1;
+		const [firstName = '', lastName = '', label = ''] = cells;
 		if (!firstName || !lastName) {
-			errors.push(`Line ${i + 2}: needs both a first and a last name.`);
+			errors.push(`Line ${lineNo}: needs both a first and a last name.`);
+			return;
+		}
+		if (/[?\uFFFD]/.test(firstName + lastName + label)) {
+			errors.push(`Line ${lineNo}: some letters were lost when the file was saved. In Excel, choose "Save as" → "CSV UTF-8" and upload again.`);
 			return;
 		}
 		rows.push({ firstName, lastName, label });

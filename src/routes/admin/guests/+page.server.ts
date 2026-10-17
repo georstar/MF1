@@ -1,6 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import { requireRole } from '#lib/server/auth.ts';
-import { parseGuestCsv } from '#lib/server/csv.ts';
+import { decodeCsv, parseGuestCsv } from '#lib/server/csv.ts';
 import { env } from '#lib/server/env.ts';
 import { addGuests, listGuests, removeGuest, updateGuest } from '#lib/server/guests.ts';
 import { listSongs } from '#lib/server/songs.ts';
@@ -27,7 +27,7 @@ export const actions: Actions = {
 		const file = (await request.formData()).get('file');
 		if (!(file instanceof File) || file.size === 0) return fail(400, { uploadError: 'Please choose a CSV file.' });
 		if (file.size > MAX_UPLOAD_BYTES) return fail(400, { uploadError: 'That file is too big for a guest list.' });
-		const { rows, errors } = parseGuestCsv(await file.text());
+		const { rows, errors } = parseGuestCsv(decodeCsv(new Uint8Array(await file.arrayBuffer())));
 		const { added, skipped } = await addGuests(env.DB, rows);
 		return { uploaded: { added, skipped, errors } };
 	},

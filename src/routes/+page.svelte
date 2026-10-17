@@ -9,7 +9,7 @@
 	let { data, form }: PageProps = $props();
 
 	// Skip the intro when coming back from a submitted name.
-	let step: 'intro' | 'name' = $state(untrack(() => form) ? 'name' : 'intro');
+	let step: 'intro' | 'name' = $state(untrack(() => form || data.startAtName) ? 'name' : 'intro');
 	let busy = $state(false);
 </script>
 
@@ -25,6 +25,9 @@
 				<p class="hand lead">Pick the songs<br /><span class="big">for our dance floor</span></p>
 				{#if data.next}
 					<a class="btn" href={data.next}>Let's dance</a>
+					<form method="POST" action="?/forget">
+						<button class="other">Not {data.who}? Pick songs as someone else</button>
+					</form>
 				{:else}
 					<button class="btn" onclick={() => (step = 'name')}>Let's dance</button>
 				{/if}
@@ -111,6 +114,15 @@
 			animation: none;
 			opacity: 1;
 		}
+	}
+	.other {
+		border: none;
+		background: none;
+		font: inherit;
+		font-size: 0.95rem;
+		color: var(--muted);
+		text-decoration: underline;
+		cursor: pointer;
 	}
 	.lead {
 		text-align: center;
