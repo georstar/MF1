@@ -29,7 +29,7 @@ describe('searchSongs', () => {
 			GR: async () => ok([track(1, 'Zorba the Greek', 'Mikis Theodorakis'), track(2, 'Dancing Queen', 'ABBA')]),
 			US: async () => ok([track(3, 'Dancing Queen', 'ABBA'), track(4, 'Mamma Mia', 'ABBA')])
 		});
-		const results = await searchSongs('abba', fn);
+		const { results } = await searchSongs('abba', fn);
 		expect(calls.map(country).sort()).toEqual(['GR', 'US']);
 		expect(results.map((r) => r.title)).toEqual(['Zorba the Greek', 'Dancing Queen', 'Mamma Mia']);
 		expect(results[1].itunesId).toBe(2);
@@ -40,7 +40,7 @@ describe('searchSongs', () => {
 			GR: async () => new Response('oops', { status: 500 }),
 			US: async () => ok([track(4, 'Mamma Mia', 'ABBA')])
 		});
-		expect((await searchSongs('mamma', fn)).map((r) => r.title)).toEqual(['Mamma Mia']);
+		expect((await searchSongs('mamma', fn)).results.map((r) => r.title)).toEqual(['Mamma Mia']);
 	});
 
 	it('still returns GR results when US throws', async () => {
@@ -50,12 +50,12 @@ describe('searchSongs', () => {
 				throw new Error('network');
 			}
 		});
-		expect(await searchSongs('zorba', fn)).toHaveLength(1);
+		expect((await searchSongs('zorba', fn)).results).toHaveLength(1);
 	});
 
 	it('returns [] without fetching for terms under 2 characters', async () => {
 		const { fn, calls } = stub({});
-		expect(await searchSongs(' a ', fn)).toEqual([]);
+		expect(await searchSongs(' a ', fn)).toEqual({ results: [], complete: true, unavailable: false });
 		expect(calls).toEqual([]);
 	});
 
@@ -63,7 +63,7 @@ describe('searchSongs', () => {
 		const many = Array.from({ length: 15 }, (_, i) => track(i, `Song ${i}`, 'Artist'));
 		const more = Array.from({ length: 15 }, (_, i) => track(100 + i, `Other ${i}`, 'Artist'));
 		const { fn } = stub({ GR: async () => ok(many), US: async () => ok(more) });
-		const results = await searchSongs('song', fn);
+		const { results } = await searchSongs('song', fn);
 		expect(results).toHaveLength(20);
 		expect(results[0].artworkUrl).toContain('200x200');
 		expect(results[0].key).toBe('song 0|artist');
@@ -77,6 +77,23 @@ describe('searchSongs', () => {
 		});
 		const pending = searchSongs('mamma', fn);
 		await vi.advanceTimersByTimeAsync(4001);
-		expect((await pending).map((r) => r.title)).toEqual(['Mamma Mia']);
+		expect((await pending).results.map((r) => r.title)).toEqual(['Mamma Mia']);
+	});
+
+	it('reports incomplete when one store fails', async () => {
+		const { fn } = stub({ GR: async () => new Response('', { status: 403 }), US: async () => ok([track(4, 'Mamma Mia', 'ABBA')]) });
+		const r = await searchSongs('mamma', fn);
+		expect(r.complete).toBe(false);
+		expect(r.unavailable).toBe(false);
+	});
+
+	it('reports unavailable when both stores fail', async () => {
+		const { fn } = stub({ GR: async () => new Response('', { status: 403 }), US: async () => new Response('', { status: 429 }) });
+		expect(await searchSongs('mamma', fn)).toEqual({ results: [], complete: false, unavailable: true });
+	});
+
+	it('an empty answer from Apple is complete, not a failure', async () => {
+		const { fn } = stub({ GR: async () => ok([]), US: async () => ok([]) });
+		expect(await searchSongs('zzzzqqq', fn)).toEqual({ results: [], complete: true, unavailable: false });
 	});
 });

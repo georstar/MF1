@@ -14,6 +14,7 @@
 	let results: SearchResult[] = $state([]);
 	let searching = $state(false);
 	let searchFailed = $state(false);
+	let searchBusy = $state(false);
 	let typing = $state(false);
 	let typedTitle = $state('');
 	let typedArtist = $state('');
@@ -37,11 +38,15 @@
 			const id = ++latest;
 			searching = true;
 			searchFailed = false;
+			searchBusy = false;
 			try {
 				const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
 				if (!res.ok) throw new Error(String(res.status));
-				const body = (await res.json()) as { results: SearchResult[] };
-				if (id === latest) results = body.results;
+				const body = (await res.json()) as { results: SearchResult[]; unavailable: boolean };
+				if (id === latest) {
+					results = body.results;
+					searchBusy = body.unavailable;
+				}
 			} catch {
 				if (id === latest) searchFailed = true;
 			} finally {
@@ -111,6 +116,8 @@
 
 		{#if searching}
 			<p class="status">Searching…</p>
+		{:else if searchBusy}
+			<p class="warn" role="status">Search is busy right now. Type your song in below, or try again in a minute.</p>
 		{:else if searchFailed}
 			<p class="warn">Search isn't working right now. You can type your song in below.</p>
 		{:else if query.trim().length >= 2 && results.length === 0}
