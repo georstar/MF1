@@ -1,12 +1,12 @@
 import type { Handle } from '@sveltejs/kit/hooks';
+import { env } from '#lib/server/env.ts';
 import { readAdminCookie, readGuestCookie } from '#lib/server/auth.ts';
 import { getGuest } from '#lib/server/guests.ts';
 
 export const handle: Handle = async ({ event, resolve }) => {
-	const env = event.platform?.env;
 	event.locals.role = null;
 	event.locals.guestId = null;
-	if (env?.SESSION_SECRET) {
+	if (env.SESSION_SECRET) {
 		event.locals.role = await readAdminCookie(event.cookies, env.SESSION_SECRET);
 		const guestId = await readGuestCookie(event.cookies, env.SESSION_SECRET);
 		// The bride may have removed this guest since the cookie was set.

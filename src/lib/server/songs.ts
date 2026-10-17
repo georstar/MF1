@@ -87,3 +87,30 @@ export async function progress(db: D1Database): Promise<{ total: number; done: n
 	const notYet = guests.filter((g) => g.picks < PICKS_PER_GUEST);
 	return { total: guests.length, done: guests.length - notYet.length, notYet };
 }
+
+const MAX_TEXT = 200;
+const APPLE_ART = /^https:\/\/[a-z0-9-]+\.mzstatic\.com\//;
+
+// Validates the picks a guest's browser sends. Returns null for anything malformed.
+export function parsePicks(json: string): PickInput[] | null {
+	let data: unknown;
+	try {
+		data = JSON.parse(json);
+	} catch {
+		return null;
+	}
+	if (!Array.isArray(data) || data.length > PICKS_PER_GUEST) return null;
+	const picks: PickInput[] = [];
+	for (const item of data) {
+		if (typeof item !== 'object' || item === null) return null;
+		const { title, artist, source, itunesId, artworkUrl } = item as Record<string, unknown>;
+		if (typeof title !== 'string' || typeof artist !== 'string') return null;
+		if (title.length > MAX_TEXT || artist.length > MAX_TEXT) return null;
+		if (source !== 'catalog' && source !== 'typed') return null;
+		const pick: PickInput = { title, artist, source };
+		if (source === 'catalog' && Number.isSafeInteger(itunesId)) pick.itunesId = itunesId as number;
+		if (source === 'catalog' && typeof artworkUrl === 'string' && APPLE_ART.test(artworkUrl)) pick.artworkUrl = artworkUrl;
+		picks.push(pick);
+	}
+	return picks;
+}
