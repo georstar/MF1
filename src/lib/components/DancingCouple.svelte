@@ -1,9 +1,9 @@
 <script lang="ts">
 	// Flip-book of the couple frames in static/couple/ (made by scripts/draw-couple.mjs).
 	// To swap in new artwork, replace the SVG files and update FRAME_COUNT.
-	const FRAME_COUNT = 16;
-	// About 12 drawings per second, the classic rate for hand-drawn animation.
-	const FRAME_MS = 85;
+	const FRAME_COUNT = 20;
+	// One slow sway every 2 seconds.
+	const FRAME_MS = 100;
 
 	let { size = 'full' }: { size?: 'full' | 'small' } = $props();
 

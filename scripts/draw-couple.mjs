@@ -303,31 +303,30 @@ function bride(pose) {
 	);
 }
 
-// The dance: the Twist. Feet stay planted and swivel on the balls of the feet;
-// bent knees swing past each other as the hips twist; arms bent at right angles
-// swing opposite to the hips ("drying your back with a towel"); the body sinks
-// and rises once per loop. Two twists per loop; trailing parts lag behind.
-const FRAMES = 16;
+// The dance: a gentle sway, like a couple swaying to a slow song. Small, slow
+// movements look natural; big ones look like puppets. One sway per loop: the
+// weight shifts toward and away from the partner, knees soften a little, arms
+// hang relaxed. Each part moves a moment after the one before it (hips, then
+// torso, head, arms, skirt, veil) so nothing moves in lockstep.
+const FRAMES = 20;
 const TAU = Math.PI * 2;
 
 function dancer(t, size) {
 	const ph = TAU * t;
-	const tw = Math.sin(2 * ph); // the twist: hips one way (+), then the other (-)
+	const swing = Math.sin(ph); // weight toward (+) and away from (-) the partner
 	return {
-		hipX: 2 * size * tw,
-		hipTwist: 9 * size * tw,
-		dip: 6 + 14 * size * (1 - Math.cos(ph)) / 2, // twist down low and back up
-		lean: 9 + 2 * tw,
-		head: -3 * Math.sin(2 * ph + 0.9),
+		hipX: 3.5 * size * swing,
+		hipTwist: 0,
+		dip: 1.6 * size * (1 - Math.cos(2 * ph)), // knees soften as the weight passes the middle
+		lean: 3 + 1.6 * Math.sin(ph + 0.4),
+		head: 2 - 1.8 * Math.sin(ph + 1.0),
 		feet: {
-			// Up on the balls of the feet, heels rising and falling as they swivel.
-			back: { x: -11, raise: 14 - 8 * tw, turn: 0.82 - 0.18 * tw },
-			front: { x: 13, raise: 10 + 8 * tw, turn: 0.82 + 0.18 * tw }
+			back: { x: -10, raise: Math.max(0, 9 * swing), turn: 1 },
+			front: { x: 12, raise: 0, turn: 1 }
 		},
-		// Elbows bent at right angles, forearms level, swinging against the hips.
 		arms: {
-			back: { upper: -8 + 22 * tw, fore: 84 + 18 * tw },
-			front: { upper: 8 - 22 * tw, fore: 96 - 18 * tw }
+			back: { upper: -4 - 5 * Math.sin(ph + 0.7), fore: 28 - 8 * Math.sin(ph + 0.9) },
+			front: { upper: 6 + 6 * Math.sin(ph + 0.7), fore: 52 + 10 * Math.sin(ph + 0.9) }
 		}
 	};
 }
@@ -335,10 +334,10 @@ function dancer(t, size) {
 function frame(i) {
 	const t = i / FRAMES;
 	const b = dancer(t, 0.9);
-	const g = dancer((t + 0.06) % 1, 1);
+	const g = dancer((t + 0.04) % 1, 1);
 	const ph = TAU * t;
 	return {
-		bride: { ...b, sway: 7 * Math.sin(2 * ph - 0.7), veil: 3 + 5 * Math.sin(2 * ph - 1.3) },
+		bride: { ...b, sway: 3 * Math.sin(ph - 0.8), veil: 2 + 3 * Math.sin(ph - 1.4) },
 		groom: g
 	};
 }
@@ -367,7 +366,7 @@ for (let i = 0; i < FRAMES; i++) {
 	const p = frame(i);
 	const b = skeleton({ torso: 84, neck: 9, headR: 20, upper: 40, fore: 36, thigh: 56, shin: 56 }, p.bride);
 	const g = skeleton({ torso: 92, neck: 9, headR: 22, upper: 44, fore: 40, thigh: 62, shin: 60 }, p.groom);
-	const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Maria and Frank dancing">${defs(11 + Math.floor(i / 2) * 3)}
+	const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Maria and Frank dancing">${defs(11)}
 <g filter="url(#pencil)">
 <g transform="translate(100 ${f(GROUND - SCALE * (GROUND - b.dy))}) scale(${SCALE})">${bride(p.bride)}</g>
 <g transform="translate(262 ${f(GROUND - SCALE * (GROUND - g.dy))}) scale(${-SCALE} ${SCALE})">${groom(p.groom)}</g>
