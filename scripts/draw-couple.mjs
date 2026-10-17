@@ -1,5 +1,6 @@
 // Generates the dancing couple poses as pencil-style SVGs into static/couple/.
 // Each figure is drawn facing right from a jointed skeleton; the groom is mirrored.
+// Frames are sampled from a continuous dance cycle (see dancer()).
 // Run: node scripts/draw-couple.mjs
 import { mkdirSync, writeFileSync } from 'node:fs';
 
@@ -86,18 +87,35 @@ function toes(ankle, raise) {
 		.join('');
 }
 
+// Ankle height above the floor so the lowest point of the foot touches it.
+function ankleLift(raise) {
+	return Math.max(...FOOT.map((p) => rot(p, raise)[1]));
+}
+
+// Knee from hip and ankle (two-bone IK); the knee always bends forward.
+function knee(hip, ankle, thigh, shin) {
+	const d = Math.min(Math.hypot(...sub(ankle, hip)), thigh + shin - 0.01);
+	const dir = Math.atan2(ankle[1] - hip[1], ankle[0] - hip[0]);
+	const a = Math.acos((thigh * thigh + d * d - shin * shin) / (2 * thigh * d));
+	const k1 = add(hip, [Math.cos(dir - a) * thigh, Math.sin(dir - a) * thigh]);
+	const k2 = add(hip, [Math.cos(dir + a) * thigh, Math.sin(dir + a) * thigh]);
+	return k1[0] > k2[0] ? k1 : k2;
+}
+
+// Local coordinates: facing right, floor at y = 0. Feet stay planted where the
+// pose puts them; the hips move and the knees follow, like a real dancer.
 function skeleton(body, pose) {
-	const hip = [pose.shift ?? 0, 0];
+	const legLength = body.thigh + body.shin;
+	const hip = [pose.hipX, -ankleLift(0) - legLength * 0.95 + pose.dip];
 	const u = unit(sub(step(hip, 180 - pose.lean, 1), hip));
 	const shoulder = step(hip, 180 - pose.lean, body.torso);
 	const neckTop = step(shoulder, 180 - pose.lean - pose.head, body.neck);
 	const head = step(neckTop, 180 - pose.lean - pose.head, body.headR * 0.85);
 	const legs = ['back', 'front'].map((k) => {
-		const l = pose.legs[k];
+		const f = pose.feet[k];
 		const hj = add(hip, [k === 'front' ? 3 : -3, 0]);
-		const knee = step(hj, l.thigh, body.thigh);
-		const ankle = step(knee, l.shin, body.shin);
-		return { hip: hj, knee, ankle, raise: l.foot };
+		const ankle = [f.x, -ankleLift(f.raise)];
+		return { hip: hj, knee: knee(hj, ankle, body.thigh, body.shin), ankle, raise: f.raise };
 	});
 	const arms = ['back', 'front'].map((k) => {
 		const a = pose.arms[k];
@@ -106,9 +124,7 @@ function skeleton(body, pose) {
 		const wrist = step(elbow, a.fore, body.fore);
 		return { shoulder: sh, elbow, wrist, fore: a.fore };
 	});
-	// Ground the figure: lowest foot point touches the ground line.
-	const lowest = Math.max(...legs.flatMap((l) => foot(l.ankle, l.raise).map((p) => p[1])));
-	return { hip, u, n: [-u[1], u[0]], shoulder, neckTop, head, legs: { back: legs[0], front: legs[1] }, arms: { back: arms[0], front: arms[1] }, dy: GROUND - lowest };
+	return { hip, u, n: [-u[1], u[0]], shoulder, neckTop, head, legs: { back: legs[0], front: legs[1] }, arms: { back: arms[0], front: arms[1] }, dy: GROUND };
 }
 
 function headGroom(c, tilt) {
@@ -119,11 +135,13 @@ function headGroom(c, tilt) {
 		[[-14, -14], [-4, -24], [10, -26]],
 		[[-10, -12], [0, -21], [14, -23]],
 		[[-12, -6], [-6, -16], [4, -19]]
-	].map((s) => path(smooth(tf(s), false), THIN)).join('');
+	].map((s) => path(smooth(tf(s), false), `fill="none" stroke="${PAPER}" stroke-width="0.9" stroke-linecap="round" opacity=".45"`)).join('');
 	const ear = path(smooth(tf([[-4, -3], [-8, -4], [-9, 3], [-5, 5]]), false), THIN);
 	return (
 		path(smooth(face), OUTLINE) +
-		path(smooth(hair), `fill="${PAPER}" stroke="${INK}" stroke-width="1.5" stroke-linejoin="round"`) +
+		path(smooth(hair), `fill="#2e2a29" stroke="none"`) +
+		path(smooth(hair), `fill="${INK}" stroke="none" filter="url(#grain)"`) +
+		path(smooth(hair), `fill="none" stroke="${INK}" stroke-width="1.5" stroke-linejoin="round"`) +
 		strokes + ear +
 		line(...tf([[7, -9], [13, -8]]), `${THIN} stroke-width="1.4"`) +
 		path(smooth(tf([[8, -4], [10, -5.5], [12, -4]]), false), THIN) +
@@ -280,35 +298,43 @@ function bride(pose) {
 	);
 }
 
-// The dance: a playful twist, six poses looping.
-const L = (thigh, shin, foot) => ({ thigh, shin, foot });
-const A = (upper, fore) => ({ upper, fore });
-const POSES = [
-	{
-		bride: { lean: 3, head: 4, shift: 0, sway: 0, veil: 0, legs: { back: L(-6, -16, 24), front: L(16, 0, 0) }, arms: { back: A(-14, 76), front: A(14, 96) } },
-		groom: { lean: 5, head: 2, shift: 0, legs: { back: L(-8, -24, 28), front: L(22, -4, 0) }, arms: { back: A(-20, 70), front: A(18, 104) } }
-	},
-	{
-		bride: { lean: 6, head: -3, shift: 4, sway: 6, veil: 4, legs: { back: L(-12, -22, 32), front: L(24, 4, 14) }, arms: { back: A(-24, 60), front: A(24, 124) } },
-		groom: { lean: 8, head: 6, shift: 3, legs: { back: L(-4, -14, 8), front: L(34, 0, 22) }, arms: { back: A(-28, 54), front: A(36, 150) } }
-	},
-	{
-		bride: { lean: 1, head: 6, shift: 2, sway: 2, veil: 8, legs: { back: L(4, -8, 6), front: L(8, -14, 28) }, arms: { back: A(-6, 92), front: A(4, 84) } },
-		groom: { lean: 2, head: -2, shift: 0, legs: { back: L(14, -2, 0), front: L(8, -18, 30) }, arms: { back: A(-8, 96), front: A(6, 88) } }
-	},
-	{
-		bride: { lean: -2, head: 2, shift: -3, sway: -6, veil: 5, legs: { back: L(18, 2, 12), front: L(-4, -16, 0) }, arms: { back: A(-30, 54), front: A(20, 118) } },
-		groom: { lean: -2, head: 4, shift: -2, legs: { back: L(26, 0, 22), front: L(-6, -14, 0) }, arms: { back: A(-34, 50), front: A(26, 120) } }
-	},
-	{
-		bride: { lean: 5, head: -4, shift: 2, sway: 4, veil: 1, legs: { back: L(-14, -28, 36), front: L(26, -4, 8) }, arms: { back: A(-18, 70), front: A(30, 138) } },
-		groom: { lean: 6, head: 6, shift: 2, legs: { back: L(-12, -28, 36), front: L(28, -8, 10) }, arms: { back: A(-16, 74), front: A(40, 160) } }
-	},
-	{
-		bride: { lean: 2, head: 3, shift: 0, sway: -2, veil: -2, legs: { back: L(0, -14, 18), front: L(16, 2, 0) }, arms: { back: A(-24, 62), front: A(10, 100) } },
-		groom: { lean: 3, head: 0, shift: 0, legs: { back: L(0, -14, 18), front: L(16, 2, 0) }, arms: { back: A(-24, 60), front: A(12, 100) } }
-	}
-];
+// The dance: one continuous, relaxed rhythm. Every value is a smooth wave over
+// one loop (t from 0 to 1) with two dips per loop, so frames flow into each other.
+// Body parts that hang or trail (head, skirt, veil) follow slightly behind the hips.
+const FRAMES = 16;
+const TAU = Math.PI * 2;
+
+function dancer(t, size) {
+	const ph = TAU * t;
+	const swing = Math.sin(ph); // weight shifting toward (+) and away from the partner
+	return {
+		hipX: 5 * size * swing,
+		dip: 2.5 * size * (1 - Math.cos(2 * ph)), // knees soften on every beat
+		lean: 4 + 3 * Math.sin(ph + 0.5),
+		head: -2.5 * Math.sin(ph + 1.1),
+		feet: {
+			back: { x: -13, raise: Math.max(0, 26 * swing) }, // back heel lifts as weight goes forward
+			front: { x: 16, raise: Math.max(0, -14 * swing) }
+		},
+		// Relaxed arms: elbows bent, hands around the waist and chest, swinging
+		// opposite to the hips and a beat behind them.
+		arms: {
+			back: { upper: -16 - 10 * swing, fore: 70 + 14 * Math.sin(ph + 0.6) },
+			front: { upper: 8 + 12 * swing, fore: 108 + 14 * Math.sin(ph + 0.6) }
+		}
+	};
+}
+
+function frame(i) {
+	const t = i / FRAMES;
+	const b = dancer(t, 0.9);
+	const g = dancer((t + 0.06) % 1, 1);
+	const ph = TAU * t;
+	return {
+		bride: { ...b, sway: 6 * Math.sin(ph - 0.7), veil: 3 + 5 * Math.sin(ph - 1.2) },
+		groom: g
+	};
+}
 
 function defs(seed) {
 	return `<defs>
@@ -330,14 +356,15 @@ function dedupeAttrs(svg) {
 }
 
 mkdirSync('static/couple', { recursive: true });
-POSES.forEach((p, i) => {
+for (let i = 0; i < FRAMES; i++) {
+	const p = frame(i);
 	const b = skeleton({ torso: 84, neck: 9, headR: 20, upper: 40, fore: 36, thigh: 56, shin: 56 }, p.bride);
 	const g = skeleton({ torso: 92, neck: 9, headR: 22, upper: 44, fore: 40, thigh: 62, shin: 60 }, p.groom);
-	const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Maria and Frank dancing">${defs(11 + i * 3)}
+	const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Maria and Frank dancing">${defs(11 + Math.floor(i / 2) * 3)}
 <g filter="url(#pencil)">
 <g transform="translate(100 ${f(GROUND - SCALE * (GROUND - b.dy))}) scale(${SCALE})">${bride(p.bride)}</g>
 <g transform="translate(262 ${f(GROUND - SCALE * (GROUND - g.dy))}) scale(${-SCALE} ${SCALE})">${groom(p.groom)}</g>
 </g></svg>`;
 	writeFileSync(`static/couple/pose-${i + 1}.svg`, dedupeAttrs(svg));
 	console.log(`pose-${i + 1}.svg ${(svg.length / 1024).toFixed(1)} KB`);
-});
+}
