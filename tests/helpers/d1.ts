@@ -23,7 +23,7 @@ export async function freshDb(): Promise<D1Database> {
 	const dir = 'migrations';
 	for (const file of readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()) {
 		const statements = readFileSync(join(dir, file), 'utf8')
-			.split(';')
+			.split(/;\s*\n/)
 			.map((s) => s.trim())
 			.filter(Boolean);
 		await db.batch(statements.map((s) => db.prepare(s)));

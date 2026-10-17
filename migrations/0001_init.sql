@@ -27,3 +27,6 @@ CREATE TABLE settings (
 	key TEXT PRIMARY KEY,
 	value TEXT NOT NULL
 );
+
+-- Hard limit: a guest can never hold more than 2 songs, even with concurrent saves.
+CREATE TRIGGER songs_pick_limit BEFORE INSERT ON songs WHEN (SELECT count(*) FROM songs WHERE guest_id = NEW.guest_id) >= 2 BEGIN SELECT RAISE(ABORT, 'pick limit'); END;
