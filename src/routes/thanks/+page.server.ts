@@ -7,7 +7,8 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals }) => {
 	const db = env.DB;
 	if (!locals.guestId) redirect(303, '/');
-	if ((await slotsLeft(db, locals.guestId)) > 0 && !isClosed(await getCloseDate(db), new Date())) redirect(303, '/pick');
+	const closed = isClosed(await getCloseDate(db), new Date());
+	if ((await slotsLeft(db, locals.guestId)) > 0 && !closed) redirect(303, '/pick');
 	const picks = (await picksOf(db, locals.guestId)).map((p) => ({ id: p.id, title: p.title, artist: p.artist, artworkUrl: p.artworkUrl }));
-	return { picks };
+	return { picks, closed };
 };

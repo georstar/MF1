@@ -41,22 +41,40 @@ export async function takenKeys(db: D1Database, keys: string[]): Promise<Set<str
 // Saves all picks or none. The UNIQUE song_key and the pick-limit trigger make
 // the database the final judge when two saves race.
 export async function savePicks(db: D1Database, guestId: number, picks: PickInput[], now: Date): Promise<SaveResult> {
+	const current = await picksOf(db, guestId);
+	return changePicks(db, guestId, current.map((p) => p.id), picks, now);
+}
+
+// Replaces a guest's songs with `keep` (ids of songs they already have) plus `picks`.
+// All or nothing: the old songs are only given up if every new song is saved.
+// The UNIQUE song_key and the pick-limit trigger make the database the final judge when saves race.
+export async function changePicks(db: D1Database, guestId: number, keep: number[], picks: PickInput[], now: Date): Promise<SaveResult> {
+	const current = await picksOf(db, guestId);
+	const kept = current.filter((p) => keep.includes(p.id));
+	if (kept.length !== new Set(keep).size) return { ok: false, reason: 'wrong-count' };
+
 	const clean = picks.map((p) => ({ ...p, title: p.title.trim(), artist: p.artist.trim() }));
-	if (!clean.length || clean.some((p) => !p.title || !p.artist)) return { ok: false, reason: 'wrong-count' };
-	if (clean.length !== (await slotsLeft(db, guestId))) return { ok: false, reason: 'wrong-count' };
+	if (clean.some((p) => !p.title || !p.artist)) return { ok: false, reason: 'wrong-count' };
+	if (!clean.length || kept.length + clean.length !== PICKS_PER_GUEST) return { ok: false, reason: 'wrong-count' };
 
 	const keys = clean.map((p) => songKey(p.title, p.artist));
-	if (new Set(keys).size !== keys.length) return { ok: false, reason: 'duplicate-in-request' };
+	const all = [...kept.map((p) => songKey(p.title, p.artist)), ...keys];
+	if (new Set(all).size !== all.length) return { ok: false, reason: 'duplicate-in-request' };
 
 	const at = now.toISOString();
+	const keepMarks = kept.map(() => '?').join(',');
+	const release = db
+		.prepare(`DELETE FROM songs WHERE guest_id = ?${kept.length ? ` AND id NOT IN (${keepMarks})` : ''}`)
+		.bind(guestId, ...kept.map((p) => p.id));
 	try {
-		await db.batch(
-			clean.map((p, i) =>
+		await db.batch([
+			release,
+			...clean.map((p, i) =>
 				db
 					.prepare('INSERT INTO songs (guest_id, title, artist, artwork_url, itunes_id, source, song_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
 					.bind(guestId, p.title, p.artist, p.artworkUrl ?? null, p.itunesId ?? null, p.source, keys[i], at)
 			)
-		);
+		]);
 		return { ok: true };
 	} catch (err) {
 		const message = String((err as Error)?.message ?? err);
@@ -64,7 +82,13 @@ export async function savePicks(db: D1Database, guestId: number, picks: PickInpu
 		// Anything else (dropped connection, overloaded database): nothing was saved,
 		// because the batch is all-or-nothing, so the guest can simply try again.
 		if (!message.includes('UNIQUE')) return { ok: false, reason: 'busy' };
-		const taken = await takenKeys(db, keys);
+		// Only other guests' songs count as taken; the batch rolled back the guest's own.
+		const marks = keys.map(() => '?').join(',');
+		const { results } = await db
+			.prepare(`SELECT song_key FROM songs WHERE song_key IN (${marks}) AND guest_id != ?`)
+			.bind(...keys, guestId)
+			.all<{ song_key: string }>();
+		const taken = new Set(results.map((r) => r.song_key));
 		return { ok: false, reason: 'taken', taken: picks.filter((_, i) => taken.has(keys[i])) };
 	}
 }
@@ -115,4 +139,19 @@ export function parsePicks(json: string): PickInput[] | null {
 		picks.push(pick);
 	}
 	return picks;
+}
+
+// Validates a change request from the guest's browser: songs to keep (by id) and new picks.
+export function parseChange(json: string): { keep: number[]; picks: PickInput[] } | null {
+	let data: unknown;
+	try {
+		data = JSON.parse(json);
+	} catch {
+		return null;
+	}
+	if (typeof data !== 'object' || data === null || Array.isArray(data)) return null;
+	const { keep, picks } = data as Record<string, unknown>;
+	if (!Array.isArray(keep) || keep.length > PICKS_PER_GUEST || !keep.every((id) => Number.isSafeInteger(id) && id > 0)) return null;
+	const parsed = parsePicks(JSON.stringify(picks ?? null));
+	return parsed ? { keep: keep as number[], picks: parsed } : null;
 }

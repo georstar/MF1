@@ -80,7 +80,7 @@ async function guest(i) {
 		const res = await request(`${BASE}/pick?/save`, {
 			method: 'POST',
 			headers: { ...headers, cookie },
-			body: new URLSearchParams({ picks: JSON.stringify(pickTwo(attempt > 0)) }),
+			body: new URLSearchParams({ change: JSON.stringify({ keep: [], picks: pickTwo(attempt > 0) }) }),
 			redirect: 'manual'
 		});
 		const type = await outcome(res);

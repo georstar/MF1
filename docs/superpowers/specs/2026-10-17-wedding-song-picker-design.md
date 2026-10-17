@@ -117,10 +117,16 @@ look with the couple dancing when the page opens.
    normalised title + artist rule, so it's looser for typos, which is accepted.
    On the bride & DJ page and in the CSV, it's marked **typed by guest**.
 4. **Thank you.** "See you on the dance floor!", the full-size couple dancing,
-   and their 2 songs listed. Picks are locked.
+   and their 2 songs listed.
 5. **Coming back.** If a guest who already picked enters their name again,
-   they go straight to the thank-you page with their songs. They cannot
-   change them; the bride can reset them.
+   they go straight to the thank-you page with their songs.
+5a. **Changing songs** (added 2026-10-18 at the user's request). Until picks
+   close, the thank-you page offers **Change my songs**: the picking page opens
+   with both current songs in their slots; the guest swaps one or both and
+   saves. The swap is all or nothing: if a new song was just taken, the old
+   songs stay. Given-up songs become available to others immediately.
+   Unlimited changes until the closing date; the bride's list shows only the
+   current songs.
 6. **After picks close.** Once the bride's closing date passes, the guest
    page shows the intro and a friendly "The song list is closed. See you on
    the dance floor!" message.

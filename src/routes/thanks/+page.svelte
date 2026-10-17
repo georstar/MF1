@@ -16,6 +16,9 @@
 			</li>
 		{/each}
 	</ul>
+	{#if !data.closed}
+		<a class="btn change" href="/pick?change">Change my songs</a>
+	{/if}
 	<form method="POST" action="/?/forget" class="other-form">
 		<button class="btn">Pick songs for someone else too</button>
 	</form>
@@ -62,9 +65,12 @@
 		filter: grayscale(0.85);
 		background: #c9c1bf;
 	}
+	.change {
+		margin-top: 20px;
+	}
 	.other-form {
 		width: 100%;
-		margin-top: 24px;
+		margin-top: 12px;
 	}
 	.hint {
 		color: var(--muted);

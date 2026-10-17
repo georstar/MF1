@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import DancingCouple from '#lib/components/DancingCouple.svelte';
 	import type { SearchResult } from '#lib/server/itunes.ts';
@@ -7,9 +8,11 @@
 
 	let { data, form }: PageProps = $props();
 
-	type Pick = PickInput & { key: string };
+	// `id` marks a song the guest already has (kept unless removed from its slot).
+	type Pick = PickInput & { key: string; id?: number };
 
-	let picks: Pick[] = $state([]);
+	const SLOTS = 2;
+	let picks: Pick[] = $state(untrack(() => data.current.map((c) => ({ ...c }))));
 	let query = $state('');
 	let results: SearchResult[] = $state([]);
 	let searching = $state(false);
@@ -22,7 +25,11 @@
 	// Songs the server told us were taken while this page was open.
 	let takenNow: string[] = $state([]);
 
-	const full = $derived(picks.length >= data.slots);
+	const full = $derived(picks.length >= SLOTS);
+	const changing = $derived(data.current.length === SLOTS);
+	const changed = $derived(picks.some((p) => p.id === undefined));
+	// The guest's own songs show as taken in search; they may still put them back.
+	const ownKeys = $derived(data.current.map((c) => c.key));
 	const takenMessage = $derived(form?.error === 'taken' ? form.taken : []);
 
 	let timer: ReturnType<typeof setTimeout>;
@@ -56,7 +63,7 @@
 	}
 
 	const isPicked = (key: string) => picks.some((p) => p.key === key);
-	const isTaken = (r: SearchResult) => r.taken || takenNow.includes(r.title);
+	const isTaken = (r: SearchResult) => (r.taken && !ownKeys.includes(r.key)) || takenNow.includes(r.title);
 
 	function add(r: SearchResult) {
 		if (full || isTaken(r) || isPicked(r.key)) return;
@@ -74,19 +81,24 @@
 		typing = false;
 	}
 
-	const payload = $derived(JSON.stringify(picks.map(({ key: _key, ...p }) => p)));
+	const payload = $derived(
+		JSON.stringify({
+			keep: picks.flatMap((p) => (p.id === undefined ? [] : [p.id])),
+			picks: picks.filter((p) => p.id === undefined).map(({ key: _key, id: _id, ...p }) => p)
+		})
+	);
 </script>
 
 <main class="page">
 	<DancingCouple size="small" />
 	<p class="hand hi">Hi {data.firstName},</p>
-	<h1 class="title">choose {data.slots === 1 ? '1 song' : `${data.slots} songs`}</h1>
-	{#if data.kept.length}
-		<p class="kept">Already on the list from you: {data.kept.map((k) => `${k.title} (${k.artist})`).join(', ')}</p>
+	<h1 class="title">{changing ? 'change your songs' : data.current.length === 1 ? 'choose 1 more song' : 'choose 2 songs'}</h1>
+	{#if changing}
+		<p class="kept">Tap × on a song to swap it. Your songs only change when you save.</p>
 	{/if}
 
 	<ol class="slots">
-		{#each { length: data.slots } as _, i (i)}
+		{#each { length: SLOTS } as _, i (i)}
 			{@const p = picks[i]}
 			<li class="slot" class:filled={p}>
 				{#if p}
@@ -105,7 +117,7 @@
 	{#if form?.error === 'duplicate'}
 		<p class="warn" role="alert">You picked the same song twice. Please choose another.</p>
 	{:else if form?.error === 'count'}
-		<p class="warn" role="alert">Please choose exactly {data.slots === 1 ? '1 song' : `${data.slots} songs`}.</p>
+		<p class="warn" role="alert">Please choose exactly 2 songs.</p>
 	{:else if form?.error === 'busy'}
 		<p class="warn" role="alert">We couldn't save just now. Please press Save again.</p>
 	{:else if form?.error === 'closed'}
@@ -170,8 +182,11 @@
 			};
 		}}
 	>
-		<input type="hidden" name="picks" value={payload} />
-		<button class="btn btn-solid" disabled={!full || busy}>Save my songs</button>
+		<input type="hidden" name="change" value={payload} />
+		<button class="btn btn-solid" disabled={!full || !changed || busy}>Save my songs</button>
+		{#if changing}
+			<a class="cancel" href="/thanks">Keep my songs as they are</a>
+		{/if}
 	</form>
 </main>
 
@@ -307,6 +322,12 @@
 		flex-direction: column;
 		gap: 10px;
 		margin-top: 12px;
+	}
+	.cancel {
+		display: block;
+		text-align: center;
+		margin-top: 14px;
+		color: var(--ink);
 	}
 	.save {
 		width: 100%;
