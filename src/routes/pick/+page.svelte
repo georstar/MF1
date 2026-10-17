@@ -106,6 +106,8 @@
 		<p class="warn" role="alert">You picked the same song twice. Please choose another.</p>
 	{:else if form?.error === 'count'}
 		<p class="warn" role="alert">Please choose exactly {data.slots === 1 ? '1 song' : `${data.slots} songs`}.</p>
+	{:else if form?.error === 'busy'}
+		<p class="warn" role="alert">We couldn't save just now. Please press Save again.</p>
 	{:else if form?.error === 'closed'}
 		<p class="warn" role="alert">The song list is closed. See you on the dance floor!</p>
 	{/if}

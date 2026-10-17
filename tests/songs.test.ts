@@ -94,6 +94,20 @@ describe('savePicks', () => {
 		expect(result.ok).toBe(false);
 	});
 
+	it('reports busy instead of crashing when the database drops the save', async () => {
+		const { db, amina } = await setup();
+		const flaky = new Proxy(db, {
+			get: (target, prop) =>
+				prop === 'batch'
+					? async () => {
+							throw new Error('Network connection lost.');
+						}
+					: Reflect.get(target, prop).bind?.(target) ?? Reflect.get(target, prop)
+		});
+		expect(await savePicks(flaky, amina.id, [song('Dancing Queen'), song('Valerie', 'Amy Winehouse')], NOW)).toEqual({ ok: false, reason: 'busy' });
+		expect(await slotsLeft(db, amina.id)).toBe(2);
+	});
+
 	it('resetGuest clears both picks', async () => {
 		const { db, amina } = await setup();
 		await savePicks(db, amina.id, [song('Dancing Queen'), song('Valerie', 'Amy Winehouse')], NOW);

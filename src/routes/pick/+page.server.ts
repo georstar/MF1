@@ -26,6 +26,7 @@ export const actions: Actions = {
 		const result = await savePicks(db, locals.guestId, picks, new Date());
 		if (result.ok) redirect(303, '/thanks');
 		if (result.reason === 'taken') return fail(409, { error: 'taken' as const, taken: result.taken.map((t) => t.title) });
+		if (result.reason === 'busy') return fail(503, { error: 'busy' as const });
 		return fail(400, { error: result.reason === 'duplicate-in-request' ? ('duplicate' as const) : ('count' as const) });
 	}
 };

@@ -14,7 +14,7 @@ export type PickInput = {
 
 export type SaveResult =
 	| { ok: true }
-	| { ok: false; reason: 'wrong-count' | 'duplicate-in-request' }
+	| { ok: false; reason: 'wrong-count' | 'duplicate-in-request' | 'busy' }
 	| { ok: false; reason: 'taken'; taken: PickInput[] };
 
 const SELECT = `SELECT s.id, s.title, s.artist, s.artwork_url AS artworkUrl, s.source, s.guest_id AS guestId,
@@ -61,7 +61,9 @@ export async function savePicks(db: D1Database, guestId: number, picks: PickInpu
 	} catch (err) {
 		const message = String((err as Error)?.message ?? err);
 		if (message.includes('pick limit')) return { ok: false, reason: 'wrong-count' };
-		if (!message.includes('UNIQUE')) throw err;
+		// Anything else (dropped connection, overloaded database): nothing was saved,
+		// because the batch is all-or-nothing, so the guest can simply try again.
+		if (!message.includes('UNIQUE')) return { ok: false, reason: 'busy' };
 		const taken = await takenKeys(db, keys);
 		return { ok: false, reason: 'taken', taken: picks.filter((_, i) => taken.has(keys[i])) };
 	}

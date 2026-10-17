@@ -34,6 +34,23 @@ npm run build     # production build
 npx wrangler pages dev   # serve the production build locally on :8788
 ```
 
+## Load test
+
+`scripts/load-test.mjs` signs in N guests and has them all save 2 songs at once,
+colliding on popular songs like a real crowd. Always point it at a throwaway
+database, never the real one:
+
+```bash
+npx wrangler d1 migrations apply mf-songs --local --persist-to .loadtest
+npm run build && npx wrangler pages dev --port 8788 --persist-to .loadtest
+# in another terminal:
+BASE=http://localhost:8788 BRIDE_PASSWORD=<from .dev.vars> GUESTS=500 IN_FLIGHT=100 node scripts/load-test.mjs
+```
+
+The local simulator drops connections beyond roughly 100-200 simultaneous
+requests, so use `IN_FLIGHT=100` locally. `tests/crowd.test.ts` runs the same
+500-guest race directly against the database as part of `npm test`.
+
 ## Secrets
 
 | Name | What it is |
