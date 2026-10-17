@@ -70,26 +70,28 @@ const THIN = `fill="none" stroke="${INK}" stroke-width="1" stroke-linecap="round
 const FOOT = [[-6, 3], [-8, 10], [-5, 15], [10, 15.5], [19, 15.2], [23, 14.8], [26.5, 13.6], [27.5, 11.4], [26, 9.6], [22, 8.4], [14, 6], [5, 2], [0, -1]];
 const HAND = [[0, -5], [9, -6], [15, -3], [17, 2], [13, 6], [6, 6], [0, 5]];
 
-function foot(ankle, raise) {
-	return FOOT.map((p) => add(rot(p, raise), ankle));
+// `turn` foreshortens the foot as it swivels toward or away from the viewer (1 = side-on).
+const turned = (p, turn) => [p[0] * turn, p[1]];
+function foot(ankle, raise, turn = 1) {
+	return FOOT.map((p) => add(rot(turned(p, turn), raise), ankle));
 }
 function hand(wrist, angle) {
 	const theta = Math.atan2(Math.cos(rad(angle)), Math.sin(rad(angle))) * (180 / Math.PI);
 	return HAND.map((p) => add(rot(p, theta), wrist));
 }
-function toes(ankle, raise) {
+function toes(ankle, raise, turn = 1) {
 	return [[19, 11.5], [22, 11], [24.5, 10.5]]
 		.map((p) => {
-			const a = add(rot(p, raise), ankle);
-			const b = add(rot([p[0] - 1.5, p[1] + 3], raise), ankle);
+			const a = add(rot(turned(p, turn), raise), ankle);
+			const b = add(rot(turned([p[0] - 1.5, p[1] + 3], turn), raise), ankle);
 			return line(a, b, THIN);
 		})
 		.join('');
 }
 
 // Ankle height above the floor so the lowest point of the foot touches it.
-function ankleLift(raise) {
-	return Math.max(...FOOT.map((p) => rot(p, raise)[1]));
+function ankleLift(raise, turn = 1) {
+	return Math.max(...FOOT.map((p) => rot(turned(p, turn), raise)[1]));
 }
 
 // Knee from hip and ankle (two-bone IK); the knee always bends forward.
@@ -107,15 +109,18 @@ function knee(hip, ankle, thigh, shin) {
 function skeleton(body, pose) {
 	const legLength = body.thigh + body.shin;
 	const hip = [pose.hipX, -ankleLift(0) - legLength * 0.95 + pose.dip];
+	// Twisting hips swing one hip joint forward and the other back.
+	const twist = pose.hipTwist ?? 0;
 	const u = unit(sub(step(hip, 180 - pose.lean, 1), hip));
 	const shoulder = step(hip, 180 - pose.lean, body.torso);
 	const neckTop = step(shoulder, 180 - pose.lean - pose.head, body.neck);
 	const head = step(neckTop, 180 - pose.lean - pose.head, body.headR * 0.85);
 	const legs = ['back', 'front'].map((k) => {
 		const f = pose.feet[k];
-		const hj = add(hip, [k === 'front' ? 3 : -3, 0]);
-		const ankle = [f.x, -ankleLift(f.raise)];
-		return { hip: hj, knee: knee(hj, ankle, body.thigh, body.shin), ankle, raise: f.raise };
+		const hj = add(hip, [k === 'front' ? 3 + twist : -3 - twist, 0]);
+		const turn = f.turn ?? 1;
+		const ankle = [f.x, -ankleLift(f.raise, turn)];
+		return { hip: hj, knee: knee(hj, ankle, body.thigh, body.shin), ankle, raise: f.raise, turn };
 	});
 	const arms = ['back', 'front'].map((k) => {
 		const a = pose.arms[k];
@@ -192,7 +197,7 @@ function groom(pose) {
 	const suit = (d) => path(d, `fill="${PAPER}" stroke="none"`) + path(d, `fill="#7d7776" stroke="none" filter="url(#grain)"`) + path(d, `fill="url(#hatch)" stroke="${INK}" stroke-width="1.6" stroke-linejoin="round"`);
 	const leg = (l, w) => {
 		const pts = limb([add(l.hip, [0, -6]), l.knee, l.ankle], [w, w - 3, w - 6]);
-		return suit(poly(pts)) + path(poly(foot(l.ankle, l.raise)), OUTLINE) + toes(l.ankle, l.raise) +
+		return suit(poly(pts)) + path(poly(foot(l.ankle, l.raise, l.turn)), OUTLINE) + toes(l.ankle, l.raise, l.turn) +
 			path(poly(limb([l.knee, l.ankle], [w - 3, w - 6])), `fill="url(#hatch2)" stroke="none" opacity=".6"`);
 	};
 	const arm = (a) =>
@@ -230,7 +235,7 @@ function bride(pose) {
 	const { hip, shoulder, n, u } = s;
 	const down = [-u[0], -u[1]];
 	const waist = lerp(hip, shoulder, 0.32);
-	const feet = (l) => path(poly(foot(l.ankle, l.raise)), OUTLINE) + toes(l.ankle, l.raise);
+	const feet = (l) => path(poly(foot(l.ankle, l.raise, l.turn)), OUTLINE) + toes(l.ankle, l.raise, l.turn);
 	const arm = (a) =>
 		path(poly(limb([add(a.shoulder, mul(u, 3)), a.elbow, a.wrist], [14, 14, 24])), `${OUTLINE} stroke-width="1.5"`) +
 		line(...limb([a.wrist], [24]).slice(0, 2), THIN) +
@@ -298,29 +303,31 @@ function bride(pose) {
 	);
 }
 
-// The dance: one continuous, relaxed rhythm. Every value is a smooth wave over
-// one loop (t from 0 to 1) with two dips per loop, so frames flow into each other.
-// Body parts that hang or trail (head, skirt, veil) follow slightly behind the hips.
+// The dance: the Twist. Feet stay planted and swivel on the balls of the feet;
+// bent knees swing past each other as the hips twist; arms bent at right angles
+// swing opposite to the hips ("drying your back with a towel"); the body sinks
+// and rises once per loop. Two twists per loop; trailing parts lag behind.
 const FRAMES = 16;
 const TAU = Math.PI * 2;
 
 function dancer(t, size) {
 	const ph = TAU * t;
-	const swing = Math.sin(ph); // weight shifting toward (+) and away from the partner
+	const tw = Math.sin(2 * ph); // the twist: hips one way (+), then the other (-)
 	return {
-		hipX: 5 * size * swing,
-		dip: 2.5 * size * (1 - Math.cos(2 * ph)), // knees soften on every beat
-		lean: 4 + 3 * Math.sin(ph + 0.5),
-		head: -2.5 * Math.sin(ph + 1.1),
+		hipX: 2 * size * tw,
+		hipTwist: 9 * size * tw,
+		dip: 6 + 14 * size * (1 - Math.cos(ph)) / 2, // twist down low and back up
+		lean: 9 + 2 * tw,
+		head: -3 * Math.sin(2 * ph + 0.9),
 		feet: {
-			back: { x: -13, raise: Math.max(0, 26 * swing) }, // back heel lifts as weight goes forward
-			front: { x: 16, raise: Math.max(0, -14 * swing) }
+			// Up on the balls of the feet, heels rising and falling as they swivel.
+			back: { x: -11, raise: 14 - 8 * tw, turn: 0.82 - 0.18 * tw },
+			front: { x: 13, raise: 10 + 8 * tw, turn: 0.82 + 0.18 * tw }
 		},
-		// Relaxed arms: elbows bent, hands around the waist and chest, swinging
-		// opposite to the hips and a beat behind them.
+		// Elbows bent at right angles, forearms level, swinging against the hips.
 		arms: {
-			back: { upper: -16 - 10 * swing, fore: 70 + 14 * Math.sin(ph + 0.6) },
-			front: { upper: 8 + 12 * swing, fore: 108 + 14 * Math.sin(ph + 0.6) }
+			back: { upper: -8 + 22 * tw, fore: 84 + 18 * tw },
+			front: { upper: 8 - 22 * tw, fore: 96 - 18 * tw }
 		}
 	};
 }
@@ -331,7 +338,7 @@ function frame(i) {
 	const g = dancer((t + 0.06) % 1, 1);
 	const ph = TAU * t;
 	return {
-		bride: { ...b, sway: 6 * Math.sin(ph - 0.7), veil: 3 + 5 * Math.sin(ph - 1.2) },
+		bride: { ...b, sway: 7 * Math.sin(2 * ph - 0.7), veil: 3 + 5 * Math.sin(2 * ph - 1.3) },
 		groom: g
 	};
 }

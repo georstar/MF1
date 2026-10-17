@@ -94,7 +94,7 @@ page always uses the address you're visiting it from.
 
 The couple is drawn by `scripts/draw-couple.mjs` into `static/couple/pose-1.svg`
 … `pose-16.svg`: 16 frames sampled from one continuous dance cycle, played at
-about 12 frames per second. To change the dance, edit `dancer()` in the script
+about 12 frames per second. To change the dance, edit `dancer()` (the Twist) in the script
 and run `node scripts/draw-couple.mjs`. To use other artwork, replace those files (SVG or change the
 extension in `src/lib/components/DancingCouple.svelte`), keeping the same aspect
 ratio (360 × 320). If the number of frames changes, update `FRAME_COUNT` in `DancingCouple.svelte`.
